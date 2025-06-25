@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Orçamento de Peças Automático (Web)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body {
+            background-color: #2c2f33;
+            color: #f6f6f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border: none;
+        }
+        .form-control {
+            background-color: #40444b;
+            border: 1px solid #555;
+            color: #f6f6f6;
+        }
+        .form-control::placeholder { color: #aaa; }
+        .form-control:focus {
+            background-color: #40444b;
+            border-color: #6a6e73;
+            box-shadow: 0 0 0 0.25rem rgba(106, 110, 115, 0.25);
+            color: #f6f6f6;
+        }
+        .btn-primary { background-color: #7289da; border-color: #7289da; }
+        .btn-primary:hover { background-color: #677bc4; border-color: #677bc4; }
+        .btn-danger { background-color: #dc3545; border-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; border-color: #bd2130; }
+        .btn-info { background-color: #17a2b8; border-color: #17a2b8; }
+        .btn-info:hover { background-color: #138496; border-color: #117a8b; }
+        .btn-warning { background-color: #ffc107; border-color: #ffc107; color: #000; }
+        .btn-warning:hover { background-color: #e0a800; border-color: #d39e00; color: #000; }
+        #resultPanel { min-height: 150px; overflow-y: auto; }
+        .item-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px dashed #555;
+        }
+        .item-entry:last-child { border-bottom: none; }
+        .part-management-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid #40444b;
+        }
+        .part-management-entry:last-child { border-bottom: none; }
+        .part-management-entry .price { color: #28a745; font-weight: bold; }
+        #paste-area { border: 2px dashed #6a6e73; padding: 20px; text-align: center; cursor: pointer; transition: background-color 0.3s ease; }
+        #paste-area:focus { outline: 3px solid #7289da; box-shadow: 0 0 10px rgba(114, 137, 218, 0.5); }
+        #processingFeedback { display: none; }
+        .remove-item-btn { background: none; border: none; color: #aaa; padding: 0 5px; cursor: pointer; transition: color 0.2s; }
+        .remove-item-btn:hover { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4 text-white">🔧 Orçamento de Peças Automático</h1>
+        <div class="card bg-dark text-white shadow-lg">
+            <div class="card-body">
+                <div id="paste-area" class="mb-4 rounded" tabindex="0">
+                    <p class="text-white-50 m-0">📋 Clique aqui e cole a imagem da lista de peças com Ctrl+V</p>
+                    <div id="processingFeedback" class="spinner-border spinner-border-sm text-light mt-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p id="processingText" class="text-info mt-2"></p>
+                </div>
+
+                <div class="mb-3">
+                    <label for="itemInput" class="form-label text-white">Adicionar/Simular Item:</label>
+                    <input type="text" class="form-control" id="itemInput" placeholder="Ex: motor 3, pintura fosco">
+                </div>
+                <button id="addItemBtn" class="btn btn-primary w-100 mb-4">Adicionar Item</button>
+
+                <hr class="border-secondary">
+
+                <div id="resultPanel" class="p-3 bg-secondary bg-opacity-25 rounded">
+                    <h3 class="text-white mb-3">📋 Itens do Orçamento:</h3>
+                    <div id="itemsList" class="mb-3"></div>
+                    <p id="totalPrice" class="fs-4 fw-bold text-success text-end"></p>
+                </div>
+                
+                <div class="mt-4 d-grid gap-2">
+                    <button id="viewSummaryBtn" class="btn btn-info">Ver Resumo Detalhado</button>
+                    <button id="clearBudgetBtn" class="btn btn-warning">Limpar Orçamento</button>
+                    <button id="managePartsBtn" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#partsManagerModal">
+                        <i class="bi bi-gear-fill"></i> Gerenciar Peças
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="partsManagerModal" tabindex="-1" aria-labelledby="partsManagerModalLabel" aria-hidden="true" data-bs-theme="dark">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="partsManagerModalLabel">Gerenciador de Peças</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="card bg-dark border-secondary mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3" id="formPartTitle">Adicionar Nova Peça</h5>
+                            <input type="hidden" id="partIdInput">
+                            <input type="hidden" id="partRevInput">
+                            <div class="mb-3">
+                                <label for="partNameInput" class="form-label">Nome da Peça</label>
+                                <input type="text" class="form-control" id="partNameInput" placeholder="Ex: motor 7">
+                            </div>
+                            <div class="mb-3">
+                                <label for="partPriceInput" class="form-label">Preço (R$)</label>
+                                <input type="number" class="form-control" id="partPriceInput" placeholder="Ex: 350000">
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button id="savePartBtn" class="btn btn-success flex-grow-1">Salvar Nova Peça</button>
+                                <button id="cancelEditBtn" class="btn btn-secondary" style="display: none;">Cancelar Edição</button>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <h5 class="mb-3">Peças Existentes</h5>
+                    <div id="partsListContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- ELEMENTOS GLOBAIS ---
+            const pasteArea = document.getElementById('paste-area');
+            const processingFeedback = document.getElementById('processingFeedback');
+            const processingText = document.getElementById('processingText');
+            const itemInput = document.getElementById('itemInput');
+            const addItemBtn = document.getElementById('addItemBtn');
+            const itemsList = document.getElementById('itemsList');
+            const totalPriceElement = document.getElementById('totalPrice');
+            const viewSummaryBtn = document.getElementById('viewSummaryBtn');
+            const clearBudgetBtn = document.getElementById('clearBudgetBtn');
+            
+            // --- ELEMENTOS DO MODAL ---
+            const managePartsBtn = document.getElementById('managePartsBtn');
+            const partsManagerModal = document.getElementById('partsManagerModal');
+            const partsListContainer = document.getElementById('partsListContainer');
+            const savePartBtn = document.getElementById('savePartBtn');
+            const cancelEditBtn = document.getElementById('cancelEditBtn');
+            const formPartTitle = document.getElementById('formPartTitle');
+            const partIdInput = document.getElementById('partIdInput');
+            const partRevInput = document.getElementById('partRevInput');
+            const partNameInput = document.getElementById('partNameInput');
+            const partPriceInput = document.getElementById('partPriceInput');
+
+            // --- ESTADO DA APLICAÇÃO ---
+            const db = new PouchDB('pecasDB');
+            let currentItems = [];
+            const BASE_PRICE = 50000;
+            let isDbPopulated = false;
+
+            // --- FUNÇÕES ---
+            const normalizeText = (text) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+            const populateDatabase = async () => {
+                if (isDbPopulated) return;
+                try {
+                    await db.get('_local/populated');
+                    isDbPopulated = true;
+                } catch (err) {
+                    if (err.name === 'not_found') {
+                        const precoPecasOriginal = { "tunagem completa com blindagem": 350000, "tunagem completa sem blindagem": 250000, "tunagem completa vip": 100000, "motor 1": 70000, "motor 2": 110000, "motor 3": 180000, "motor 4": 220000, "motor 5": 250000, "motor 6": 290000, "freio 1": 30000, "freio 2": 70000, "freio 3": 120000, "freio 4": 160000, "freio 5": 190000, "freio 6": 220000, "suspensao 1": 30000, "suspensao 2": 60000, "suspensao 3": 90000, "suspensao 4": 120000, "suspensao 5": 150000, "suspensao 6": 175000, "blindagem 1": 350000, "blindagem 2": 350000, "blindagem 3": 350000, "blindagem 4": 350000, "primaria": 70000, "pintura interior": 80000, "secundaria": 80000, "perolado": 100000, "fosco": 150000, "xenom": 80000, "neon": 50000, "transmissao 1": 30000, "transmissao 2": 60000, "transmissao 3": 90000, "transmissao 4": 120000, "transmissao 5": 150000, "transmissao 6": 180000, "escapamento": 80000, "aerofolio": 80000, "aerofoil": 80000, "carroceria": 300000, "paralama": 30000, "parachoque frontal": 45000, "retrovisor": 20000, "placa": 60000, "capo": 30000, "teto": 85000, "bau": 50000, "protecao": 35000, "farol": 25000, "carenagem": 25000, "janela 1": 45000, "janela 2": 45000, "janela 3": 45000, "janela 4": 45000, "buzina": 25000, "som": 150000, "extra": 1200000, "grelha": 100000, "saias": 100000, "importadas": 250000, "de luxo": 100000, "rodas basicas": 100000, "turbo": 30000, "antilag": 50000, "remap": 500000, "cambagem": 500000, "suspensao a ar": 500000, "dentro da cidade": 200000, "fora da cidade": 450000, "sem gasolina": 150000 };
+                        const docs = Object.entries(precoPecasOriginal).map(([name, price]) => ({ _id: normalizeText(name).replace(/\s+/g, '-'), name, price }));
+                        await db.bulkDocs(docs);
+                        await db.put({ _id: '_local/populated', populated: true });
+                        isDbPopulated = true;
+                    }
+                }
+            };
+
+            const updateBudgetDisplay = () => {
+                itemsList.innerHTML = '';
+                let total = BASE_PRICE;
+                if (currentItems.length === 0) {
+                    itemsList.innerHTML = '<p class="text-white-50">Nenhum item adicionado ainda.</p>';
+                } else {
+                    currentItems.forEach((item, index) => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'item-entry text-white';
+                        itemDiv.innerHTML = `<span>${item.name}</span><div class="d-flex align-items-center"><span class="me-3">R$ ${item.price.toLocaleString('pt-BR')}</span><button class="remove-item-btn" data-index="${index}" title="Remover item"><i class="bi bi-trash-fill"></i></button></div>`;
+                        itemsList.appendChild(itemDiv);
+                        total += item.price;
+                    });
+                }
+                totalPriceElement.textContent = `💰 Total a cobrar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            };
+            
+            const addItemToBudget = async (itemName) => {
+                const normalizedInput = normalizeText(itemName);
+                let found = false;
+                try {
+                    const result = await db.allDocs({ include_docs: true });
+                    for (const row of result.rows) {
+                        if (row.id.startsWith('_local/')) continue;
+                        if (normalizedInput.includes(normalizeText(row.doc.name))) {
+                            currentItems.push({ name: row.doc.name.toUpperCase(), price: row.doc.price });
+                            found = true;
+                        }
+                    }
+                } catch (err) { console.error("Erro ao buscar no DB:", err); }
+                return found;
+            };
+
+            const renderPartsList = async () => {
+                partsListContainer.innerHTML = '<p class="text-center text-muted">Carregando...</p>';
+                try {
+                    const result = await db.allDocs({ include_docs: true, descending: true });
+                    partsListContainer.innerHTML = '';
+                    const docs = result.rows.filter(row => !row.id.startsWith('_local/'));
+                    if(docs.length === 0) {
+                         partsListContainer.innerHTML = '<p class="text-center text-muted">Nenhuma peça cadastrada.</p>';
+                         return;
+                    }
+                    docs.forEach(({ doc }) => {
+                        const partDiv = document.createElement('div');
+                        partDiv.className = 'part-management-entry';
+                        partDiv.innerHTML = `<div class="flex-grow-1"><span>${doc.name}</span><br><small class="price">R$ ${Number(doc.price).toLocaleString('pt-BR')}</small></div><div class="btn-group" role="group"><button class="btn btn-outline-info btn-sm edit-part-btn" data-id="${doc._id}"><i class="bi bi-pencil-fill"></i></button><button class="btn btn-outline-danger btn-sm delete-part-btn" data-id="${doc._id}" data-rev="${doc._rev}"><i class="bi bi-trash-fill"></i></button></div>`;
+                        partsListContainer.appendChild(partDiv);
+                    });
+                } catch (err) { partsListContainer.innerHTML = '<p class="text-center text-danger">Erro ao carregar peças.</p>'; }
+            };
+
+            const resetPartForm = () => {
+                formPartTitle.textContent = 'Adicionar Nova Peça';
+                savePartBtn.textContent = 'Salvar Nova Peça';
+                partIdInput.value = ''; partRevInput.value = ''; partNameInput.value = ''; partPriceInput.value = '';
+                cancelEditBtn.style.display = 'none';
+            };
+            
+            // --- EVENT LISTENERS ---
+            pasteArea.addEventListener('paste', async (event) => {
+                event.preventDefault();
+                const items = event.clipboardData.items;
+                let imageFile = null;
+                for (const item of items) { if (item.type.startsWith('image/')) { imageFile = item.getAsFile(); break; } }
+                if (imageFile) {
+                    processingFeedback.style.display = 'inline-block';
+                    processingText.textContent = 'Reconhecendo texto...';
+                    try {
+                        const { data: { text } } = await Tesseract.recognize(imageFile, 'por', { logger: m => { if(m.status === 'recognizing text') processingText.textContent = `Progresso: ${(m.progress * 100).toFixed(0)}%`; }});
+                        let itemsFoundCount = 0;
+                        for (const line of text.split('\n')) { if (line.trim() && await addItemToBudget(line)) { itemsFoundCount++; } }
+                        updateBudgetDisplay();
+                        alert(`${itemsFoundCount} item(s) adicionado(s) da imagem!`);
+                    } catch (error) { alert("Ocorreu um erro ao ler a imagem."); } finally { processingFeedback.style.display = 'none'; processingText.textContent = ''; }
+                } else { alert("O item colado não é uma imagem."); }
+            });
+
+            addItemBtn.addEventListener('click', async () => {
+                const text = itemInput.value.trim();
+                if (text && await addItemToBudget(text)) {
+                    updateBudgetDisplay();
+                    itemInput.value = '';
+                } else { alert(`"${text}" não foi encontrado.`); }
+            });
+            
+            clearBudgetBtn.addEventListener('click', () => { currentItems = []; updateBudgetDisplay(); });
+
+            itemsList.addEventListener('click', (event) => {
+                const removeBtn = event.target.closest('.remove-item-btn');
+                if (removeBtn) {
+                    currentItems.splice(removeBtn.dataset.index, 1);
+                    updateBudgetDisplay();
+                }
+            });
+            
+            viewSummaryBtn.addEventListener('click', () => {
+                const summary = currentItems.map(item => `${item.name.padEnd(30)} R$ ${item.price.toLocaleString('pt-BR')}`).join('\n');
+                const total = currentItems.reduce((sum, item) => sum + item.price, BASE_PRICE);
+                const totalString = `\n\n💰 Total a cobrar: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                alert(currentItems.length > 0 ? `📋 Itens Identificados:\n\n${summary}${totalString}` : "Nenhum item no orçamento.");
+            });
+
+            partsManagerModal.addEventListener('show.bs.modal', async () => {
+                await populateDatabase();
+                await renderPartsList();
+            });
+
+            savePartBtn.addEventListener('click', async () => {
+                const name = partNameInput.value.trim();
+                const price = parseFloat(partPriceInput.value);
+                const id = partIdInput.value;
+                const rev = partRevInput.value;
+                if (!name || isNaN(price) || price < 0) return alert('Preencha nome e preço válidos.');
+                try {
+                    const doc = { name, price };
+                    if (id) { doc._id = id; doc._rev = rev; } else { doc._id = normalizeText(name).replace(/\s+/g, '-'); }
+                    await db.put(doc);
+                    resetPartForm();
+                    await renderPartsList();
+                } catch (err) { alert('Erro ao salvar. Nome já pode existir.'); }
+            });
+
+            cancelEditBtn.addEventListener('click', resetPartForm);
+
+            partsListContainer.addEventListener('click', async (event) => {
+                const target = event.target;
+                const editBtn = target.closest('.edit-part-btn');
+                const deleteBtn = target.closest('.delete-part-btn');
+
+                if (editBtn) {
+                    try {
+                        const doc = await db.get(editBtn.dataset.id);
+                        formPartTitle.textContent = 'Editando Peça';
+                        savePartBtn.textContent = 'Atualizar Peça';
+                        partIdInput.value = doc._id; partRevInput.value = doc._rev;
+                        partNameInput.value = doc.name; partPriceInput.value = doc.price;
+                        cancelEditBtn.style.display = 'inline-block';
+                        partsManagerModal.querySelector('.modal-body').scrollTop = 0;
+                    } catch (err) { alert('Erro ao carregar dados da peça.'); }
+                }
+
+                if (deleteBtn) {
+                    if (confirm('Remover esta peça permanentemente?')) {
+                        try {
+                            await db.remove(deleteBtn.dataset.id, deleteBtn.dataset.rev);
+                            await renderPartsList();
+                        } catch (err) { alert('Erro ao remover a peça.'); }
+                    }
+                }
+            });
+
+            // --- INICIALIZAÇÃO ---
+            updateBudgetDisplay();
+        });
+    </script>
+</body>
+</html>
